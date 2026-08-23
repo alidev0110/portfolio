@@ -18,7 +18,7 @@ const LEVEL_COLORS_DARK = [
   "#39d353",
 ];
 const GAP_RATIO = 0.28; // gap as a fraction of cell size
-const MIN_CELL = 6;
+const MIN_CELL = 4;
 const MAX_CELL = 12;
 const MONTH_NAMES = [
   "Jan",
@@ -110,10 +110,7 @@ function GitHubCalendar({ username, dark }) {
   }, []);
 
   const weekCount = weeks ? weeks.length : 53; // 53 is the usual max for a year
-  const rawCell = containerWidth
-    ? containerWidth / (weekCount * (1 + GAP_RATIO))
-    : MAX_CELL;
-  const CELL = Math.max(MIN_CELL, Math.min(MAX_CELL, rawCell));
+  const CELL = 11; // fixed size — always readable, scroll handles overflow
   const GAP = CELL * GAP_RATIO;
   const gridWidth = weekCount * (CELL + GAP);
   const gridHeight = 7 * (CELL + GAP);
@@ -165,7 +162,34 @@ function GitHubCalendar({ username, dark }) {
         padding: "20px 16px",
       }}
     >
-      <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      <style>{`
+        .ghcal-scroll::-webkit-scrollbar {
+          height: 6px;
+        }
+        .ghcal-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .ghcal-scroll::-webkit-scrollbar-thumb {
+          background: ${dark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"};
+          border-radius: 999px;
+        }
+        .ghcal-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: ${dark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"} transparent;
+        }
+      `}</style>
+      <div
+        ref={containerRef}
+        className="ghcal-scroll"
+        style={{
+          position: "relative",
+          width: "100%",
+          overflowX: "auto",
+          overflowY: "hidden",
+          paddingBottom: 10,
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         {/* Month labels */}
         <div style={{ position: "relative", height: 16, marginBottom: 4 }}>
           {monthLabels.map(({ colIndex, label }) => (
