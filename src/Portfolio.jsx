@@ -49,8 +49,6 @@ function GitHubCalendar({ username, dark }) {
 
   const LEVEL_COLORS = dark ? LEVEL_COLORS_DARK : LEVEL_COLORS_LIGHT;
   const borderColor = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
-  const textColor = dark ? "#f2f2f2" : "#111111";
-  const subTextColor = dark ? "rgba(242,242,242,0.5)" : "rgba(0,0,0,0.45)";
   const labelColor = dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
   const skeletonColor = dark ? "#2a2a2a" : "#eeeeee";
 
@@ -157,64 +155,6 @@ function GitHubCalendar({ username, dark }) {
         padding: "20px 16px",
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: dark ? "#2f3136" : "#1c2531",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 17l6-6 4 4 8-8"
-                stroke="#7ee7a8"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M15 7h6v6"
-                stroke="#7ee7a8"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 15, color: textColor }}>
-            Contributes
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 3, padding: 4 }}>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              style={{
-                width: 4,
-                height: 4,
-                borderRadius: "50%",
-                background: subTextColor,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
       <div
         style={{
           position: "relative",
