@@ -19,7 +19,6 @@ const LEVEL_COLORS_DARK = [
 ];
 const CELL = 11; // same cell size as GitHub's own contribution graph
 const GAP_RATIO = 0.28;
-const CUBE_DEPTH = [0, 1.5, 3, 4.5, 6]; // per-cell 3D pop, by contribution level
 const MONTH_NAMES = [
   "Jan",
   "Feb",
@@ -34,14 +33,6 @@ const MONTH_NAMES = [
   "Nov",
   "Dec",
 ];
-
-function shadeColor(hex, factor) {
-  const num = parseInt(hex.replace("#", ""), 16);
-  const r = Math.round(((num >> 16) & 255) * factor);
-  const g = Math.round(((num >> 8) & 255) * factor);
-  const b = Math.round((num & 255) * factor);
-  return `rgb(${r},${g},${b})`;
-}
 
 function levelFromCount(count) {
   if (count === 0) return 0;
@@ -127,13 +118,14 @@ function GitHubCalendar({ username, dark }) {
   }
 
   // Same grid shape/size as GitHub's own contribution graph: full year,
-  // weeks as columns, weekdays as rows — just rendered as small 3D blocks.
+  // weeks as columns, weekdays as rows.
   const weekCount = weeks ? weeks.length : 53;
   const GAP = CELL * GAP_RATIO;
   const gridWidth = weekCount * (CELL + GAP);
   const gridHeight = 7 * (CELL + GAP);
 
   const monthLabels = [];
+  const MIN_LABEL_GAP_COLS = 2; // avoid two month labels overlapping
   if (weeks) {
     let lastMonth = null;
     weeks.forEach((week, colIndex) => {
@@ -141,8 +133,15 @@ function GitHubCalendar({ username, dark }) {
       if (!firstReal) return;
       const month = new Date(firstReal.date + "T00:00:00").getMonth();
       if (month !== lastMonth) {
-        monthLabels.push({ colIndex, label: MONTH_NAMES[month] });
         lastMonth = month;
+        const prev = monthLabels[monthLabels.length - 1];
+        // A label too close to the previous one is almost always a
+        // one-day sliver at the year boundary — replace it rather than
+        // showing two overlapping labels.
+        if (prev && colIndex - prev.colIndex < MIN_LABEL_GAP_COLS) {
+          monthLabels.pop();
+        }
+        monthLabels.push({ colIndex, label: MONTH_NAMES[month] });
       }
     });
   }
@@ -282,19 +281,26 @@ function GitHubCalendar({ username, dark }) {
                   if (!day && !isSkeleton) return null;
 
                   const level = isSkeleton ? 0 : day.level;
-                  const depth = isSkeleton ? 0 : CUBE_DEPTH[level];
-                  const topColor = isSkeleton
-                    ? skeletonColor
-                    : LEVEL_COLORS[level];
-                  const frontColor = shadeColor(topColor, 0.68);
+                  const fill = isSkeleton ? skeletonColor : LEVEL_COLORS[level];
                   const isHovered =
                     day && tooltip && tooltip.date === day.date;
                   const x = colIndex * (CELL + GAP);
                   const y = rowIndex * (CELL + GAP);
 
                   return (
-                    <g
+                    <rect
                       key={`${colIndex}-${rowIndex}`}
+                      x={x}
+                      y={y}
+                      width={CELL}
+                      height={CELL}
+                      rx={cellRadius}
+                      fill={fill}
+                      opacity={isSkeleton ? 0.7 : 1}
+                      stroke={isHovered ? (dark ? "#fff" : "#000") : "none"}
+                      strokeOpacity={0.4}
+                      strokeWidth={isHovered ? 1 : 0}
+                      style={{ cursor: day ? "pointer" : "default" }}
                       onMouseEnter={() => {
                         if (!day) return;
                         setTooltip({
@@ -305,31 +311,7 @@ function GitHubCalendar({ username, dark }) {
                         });
                       }}
                       onMouseLeave={() => setTooltip(null)}
-                      style={{ cursor: day ? "pointer" : "default" }}
-                    >
-                      {depth > 0 && (
-                        <rect
-                          x={x}
-                          y={y}
-                          width={CELL}
-                          height={CELL}
-                          rx={cellRadius}
-                          fill={frontColor}
-                        />
-                      )}
-                      <rect
-                        x={x}
-                        y={y - depth}
-                        width={CELL}
-                        height={CELL}
-                        rx={cellRadius}
-                        fill={topColor}
-                        opacity={isSkeleton ? 0.7 : 1}
-                        stroke={isHovered ? (dark ? "#fff" : "#000") : "none"}
-                        strokeOpacity={0.4}
-                        strokeWidth={isHovered ? 1 : 0}
-                      />
-                    </g>
+                    />
                   );
                 }),
               )}
