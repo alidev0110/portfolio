@@ -17,9 +17,23 @@ const LEVEL_COLORS_DARK = [
   "#26a641",
   "#39d353",
 ];
-const CUBE_LEVEL_HEIGHT = [3, 10, 16, 22, 30]; // extrusion height per contribution level
-const TILE_W = 22; // isometric tile width (top diamond)
-const TILE_H = 12; // isometric tile height (top diamond)
+const CELL = 11; // same cell size as GitHub's own contribution graph
+const GAP_RATIO = 0.28;
+const CUBE_DEPTH = [0, 1.5, 3, 4.5, 6]; // per-cell 3D pop, by contribution level
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 function shadeColor(hex, factor) {
   const num = parseInt(hex.replace("#", ""), 16);
@@ -46,6 +60,8 @@ function GitHubCalendar({ username, dark }) {
   const borderColor = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
   const textColor = dark ? "#f2f2f2" : "#111111";
   const subTextColor = dark ? "rgba(242,242,242,0.5)" : "rgba(0,0,0,0.45)";
+  const labelColor = dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
+  const skeletonColor = dark ? "#2a2a2a" : "#eeeeee";
 
   // Fetch contribution data as early as possible
   useEffect(() => {
@@ -110,57 +126,29 @@ function GitHubCalendar({ username, dark }) {
     );
   }
 
-  // Isometric grid: trim dead leading weeks so the chart reads as full/dense
-  // rather than mostly empty tiles, and cap how far back it goes.
-  const FALLBACK_WEEKS = 12;
-  const MAX_WEEKS_SHOWN = 24;
-  let recentWeeks;
+  // Same grid shape/size as GitHub's own contribution graph: full year,
+  // weeks as columns, weekdays as rows — just rendered as small 3D blocks.
+  const weekCount = weeks ? weeks.length : 53;
+  const GAP = CELL * GAP_RATIO;
+  const gridWidth = weekCount * (CELL + GAP);
+  const gridHeight = 7 * (CELL + GAP);
+
+  const monthLabels = [];
   if (weeks) {
-    const firstActiveWeek = weeks.findIndex((week) =>
-      week.some((d) => d && d.level > 0),
-    );
-    const start =
-      firstActiveWeek === -1
-        ? Math.max(0, weeks.length - FALLBACK_WEEKS)
-        : Math.max(0, firstActiveWeek - 1);
-    recentWeeks = weeks
-      .slice(start)
-      .slice(-MAX_WEEKS_SHOWN);
-  } else {
-    recentWeeks = Array.from({ length: FALLBACK_WEEKS }, () => Array(7).fill(null));
+    let lastMonth = null;
+    weeks.forEach((week, colIndex) => {
+      const firstReal = week.find((d) => d);
+      if (!firstReal) return;
+      const month = new Date(firstReal.date + "T00:00:00").getMonth();
+      if (month !== lastMonth) {
+        monthLabels.push({ colIndex, label: MONTH_NAMES[month] });
+        lastMonth = month;
+      }
+    });
   }
-  const cols = recentWeeks.length;
-  const rows = 7;
 
-  const cubes = [];
-  for (let col = 0; col < cols; col++) {
-    for (let row = 0; row < rows; row++) {
-      const day = recentWeeks[col][row];
-      const level = status === "loading" ? 0 : day ? day.level : 0;
-      const height =
-        status === "loading" ? CUBE_LEVEL_HEIGHT[0] : CUBE_LEVEL_HEIGHT[level];
-      const baseX = (col - row) * (TILE_W / 2);
-      const baseY = (col + row) * (TILE_H / 2);
-      cubes.push({ col, row, day, level, height, baseX, baseY });
-    }
-  }
-  cubes.sort((a, b) => a.col + a.row - (b.col + b.row));
-
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
-  cubes.forEach(({ baseX, baseY, height }) => {
-    minX = Math.min(minX, baseX - TILE_W / 2);
-    maxX = Math.max(maxX, baseX + TILE_W / 2);
-    minY = Math.min(minY, baseY - height - TILE_H / 2);
-    maxY = Math.max(maxY, baseY + TILE_H / 2);
-  });
-  const svgWidth = maxX - minX;
-  const svgHeight = maxY - minY;
-  const offsetX = -minX;
-  const offsetY = -minY;
-  const toPath = (pts) => pts.map((p) => p.join(",")).join(" ");
+  const WEEKDAY_LABELS = { 1: "Mon", 3: "Wed", 5: "Fri" };
+  const cellRadius = Math.max(2, CELL * 0.22);
 
   return (
     <div
@@ -228,92 +216,179 @@ function GitHubCalendar({ username, dark }) {
         </div>
       </div>
 
-      {/* Isometric grid */}
       <div
         style={{
-          display: "flex",
-          justifyContent: "center",
+          position: "relative",
+          width: "100%",
           overflowX: "auto",
-          paddingBottom: 4,
+          overflowY: "hidden",
+          paddingBottom: 10,
+          WebkitOverflowScrolling: "touch",
         }}
       >
-        <svg
-          width={svgWidth}
-          height={svgHeight}
-          style={{ overflow: "visible", flexShrink: 0 }}
-        >
-          {cubes.map(({ col, row, day, level, height, baseX, baseY }) => {
-            const x = baseX + offsetX;
-            const y = baseY + offsetY;
-            const topColor = LEVEL_COLORS[level];
-            const leftColor = shadeColor(topColor, 0.62);
-            const rightColor = shadeColor(topColor, 0.8);
-            const isHovered = day && tooltip && tooltip.date === day.date;
-
-            const topPts = [
-              [x, y - height - TILE_H / 2],
-              [x + TILE_W / 2, y - height],
-              [x, y - height + TILE_H / 2],
-              [x - TILE_W / 2, y - height],
-            ];
-            const leftPts = [
-              [x - TILE_W / 2, y - height],
-              [x, y - height + TILE_H / 2],
-              [x, y + TILE_H / 2],
-              [x - TILE_W / 2, y],
-            ];
-            const rightPts = [
-              [x, y - height + TILE_H / 2],
-              [x + TILE_W / 2, y - height],
-              [x + TILE_W / 2, y],
-              [x, y + TILE_H / 2],
-            ];
-
-            return (
-              <g
-                key={`${col}-${row}`}
-                onMouseEnter={() =>
-                  day && setTooltip({ date: day.date, count: day.count })
-                }
-                onMouseLeave={() => setTooltip(null)}
-                style={{ cursor: day ? "pointer" : "default" }}
+        <div style={{ display: "flex" }}>
+          {/* Weekday labels */}
+          <div
+            style={{
+              position: "relative",
+              width: 24,
+              height: gridHeight,
+              marginTop: 16,
+              flexShrink: 0,
+            }}
+          >
+            {Object.entries(WEEKDAY_LABELS).map(([rowIndex, label]) => (
+              <span
+                key={label}
+                style={{
+                  position: "absolute",
+                  top: rowIndex * (CELL + GAP),
+                  fontSize: 10,
+                  color: labelColor,
+                }}
               >
-                {height > 4 && (
-                  <polygon points={toPath(leftPts)} fill={leftColor} />
-                )}
-                {height > 4 && (
-                  <polygon points={toPath(rightPts)} fill={rightColor} />
-                )}
-                <polygon
-                  points={toPath(topPts)}
-                  fill={topColor}
-                  stroke={isHovered ? (dark ? "#fff" : "#000") : "none"}
-                  strokeOpacity={0.4}
-                  strokeWidth={isHovered ? 1 : 0}
-                />
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+                {label}
+              </span>
+            ))}
+          </div>
 
-      {/* Hover detail */}
-      <div
-        style={{
-          textAlign: "center",
-          fontSize: 12,
-          color: subTextColor,
-          marginTop: 8,
-          minHeight: 16,
-        }}
-      >
-        {tooltip
-          ? tooltip.count === 0
-            ? `No contributions on ${formatDateLabel(tooltip.date)}`
-            : `${tooltip.count} contribution${
-                tooltip.count === 1 ? "" : "s"
-              } on ${formatDateLabel(tooltip.date)}`
-          : "Hover a block to see the day's activity"}
+          <div style={{ flex: 1 }}>
+            {/* Month labels */}
+            <div style={{ position: "relative", height: 16, marginBottom: 4 }}>
+              {monthLabels.map(({ colIndex, label }) => (
+                <span
+                  key={colIndex + label}
+                  style={{
+                    position: "absolute",
+                    left: colIndex * (CELL + GAP),
+                    fontSize: 11,
+                    color: labelColor,
+                  }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            <svg
+              width={gridWidth}
+              height={gridHeight}
+              style={{ overflow: "visible", display: "block" }}
+            >
+              {Array.from({ length: weekCount }).map((_, colIndex) =>
+                Array.from({ length: 7 }).map((_, rowIndex) => {
+                  const day = weeks ? weeks[colIndex]?.[rowIndex] : null;
+                  const isSkeleton = status === "loading";
+                  if (!day && !isSkeleton) return null;
+
+                  const level = isSkeleton ? 0 : day.level;
+                  const depth = isSkeleton ? 0 : CUBE_DEPTH[level];
+                  const topColor = isSkeleton
+                    ? skeletonColor
+                    : LEVEL_COLORS[level];
+                  const frontColor = shadeColor(topColor, 0.68);
+                  const isHovered =
+                    day && tooltip && tooltip.date === day.date;
+                  const x = colIndex * (CELL + GAP);
+                  const y = rowIndex * (CELL + GAP);
+
+                  return (
+                    <g
+                      key={`${colIndex}-${rowIndex}`}
+                      onMouseEnter={() => {
+                        if (!day) return;
+                        setTooltip({
+                          date: day.date,
+                          count: day.count,
+                          x: x + CELL / 2,
+                          y,
+                        });
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                      style={{ cursor: day ? "pointer" : "default" }}
+                    >
+                      {depth > 0 && (
+                        <rect
+                          x={x}
+                          y={y}
+                          width={CELL}
+                          height={CELL}
+                          rx={cellRadius}
+                          fill={frontColor}
+                        />
+                      )}
+                      <rect
+                        x={x}
+                        y={y - depth}
+                        width={CELL}
+                        height={CELL}
+                        rx={cellRadius}
+                        fill={topColor}
+                        opacity={isSkeleton ? 0.7 : 1}
+                        stroke={isHovered ? (dark ? "#fff" : "#000") : "none"}
+                        strokeOpacity={0.4}
+                        strokeWidth={isHovered ? 1 : 0}
+                      />
+                    </g>
+                  );
+                }),
+              )}
+            </svg>
+          </div>
+        </div>
+
+        {tooltip && (
+          <div
+            style={{
+              position: "absolute",
+              left: tooltip.x + 24,
+              top: tooltip.y + 20 - 34,
+              transform: "translateX(-50%)",
+              background: "#1c1c1c",
+              color: "white",
+              fontSize: 12,
+              padding: "6px 10px",
+              borderRadius: 6,
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
+          >
+            {tooltip.count === 0
+              ? `No contributions on ${formatDateLabel(tooltip.date)}`
+              : `${tooltip.count} contribution${
+                  tooltip.count === 1 ? "" : "s"
+                } on ${formatDateLabel(tooltip.date)}`}
+          </div>
+        )}
+
+        {/* Legend */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            marginTop: 6,
+            marginLeft: 24,
+            fontSize: 11,
+            color: labelColor,
+          }}
+        >
+          <span>Less</span>
+          {LEVEL_COLORS.map((c) => (
+            <span
+              key={c}
+              style={{
+                width: CELL,
+                height: CELL,
+                borderRadius: cellRadius,
+                background: c,
+                display: "inline-block",
+              }}
+            />
+          ))}
+          <span>More</span>
+        </div>
       </div>
     </div>
   );
