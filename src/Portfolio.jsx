@@ -17,10 +17,9 @@ const LEVEL_COLORS_DARK = [
   "#26a641",
   "#39d353",
 ];
-const CUBE_LEVEL_HEIGHT = [3, 12, 19, 26, 35]; // extrusion height per contribution level
-const TILE_W = 26; // isometric tile width (top diamond)
-const TILE_H = 14; // isometric tile height (top diamond)
-const WEEKS_SHOWN = 9; // most recent weeks rendered in the isometric grid
+const CUBE_LEVEL_HEIGHT = [3, 10, 16, 22, 30]; // extrusion height per contribution level
+const TILE_W = 22; // isometric tile width (top diamond)
+const TILE_H = 12; // isometric tile height (top diamond)
 
 function shadeColor(hex, factor) {
   const num = parseInt(hex.replace("#", ""), 16);
@@ -111,10 +110,25 @@ function GitHubCalendar({ username, dark }) {
     );
   }
 
-  // Isometric grid: most recent WEEKS_SHOWN weeks x 7 days, rendered as extruded tiles
-  const recentWeeks = weeks
-    ? weeks.slice(-WEEKS_SHOWN)
-    : Array.from({ length: WEEKS_SHOWN }, () => Array(7).fill(null));
+  // Isometric grid: trim dead leading weeks so the chart reads as full/dense
+  // rather than mostly empty tiles, and cap how far back it goes.
+  const FALLBACK_WEEKS = 12;
+  const MAX_WEEKS_SHOWN = 24;
+  let recentWeeks;
+  if (weeks) {
+    const firstActiveWeek = weeks.findIndex((week) =>
+      week.some((d) => d && d.level > 0),
+    );
+    const start =
+      firstActiveWeek === -1
+        ? Math.max(0, weeks.length - FALLBACK_WEEKS)
+        : Math.max(0, firstActiveWeek - 1);
+    recentWeeks = weeks
+      .slice(start)
+      .slice(-MAX_WEEKS_SHOWN);
+  } else {
+    recentWeeks = Array.from({ length: FALLBACK_WEEKS }, () => Array(7).fill(null));
+  }
   const cols = recentWeeks.length;
   const rows = 7;
 
@@ -123,7 +137,8 @@ function GitHubCalendar({ username, dark }) {
     for (let row = 0; row < rows; row++) {
       const day = recentWeeks[col][row];
       const level = status === "loading" ? 0 : day ? day.level : 0;
-      const height = status === "loading" ? 3 : CUBE_LEVEL_HEIGHT[level];
+      const height =
+        status === "loading" ? CUBE_LEVEL_HEIGHT[0] : CUBE_LEVEL_HEIGHT[level];
       const baseX = (col - row) * (TILE_W / 2);
       const baseY = (col + row) * (TILE_H / 2);
       cubes.push({ col, row, day, level, height, baseX, baseY });
