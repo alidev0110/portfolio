@@ -223,6 +223,7 @@ function GitHubCalendar({ username, dark }) {
           overflowY: "hidden",
           paddingBottom: 10,
           WebkitOverflowScrolling: "touch",
+          touchAction: "pan-x",
         }}
       >
         <div style={{ display: "flex" }}>
@@ -301,13 +302,14 @@ function GitHubCalendar({ username, dark }) {
                       strokeOpacity={0.4}
                       strokeWidth={isHovered ? 1 : 0}
                       style={{ cursor: day ? "pointer" : "default" }}
-                      onMouseEnter={() => {
+                      onMouseEnter={(e) => {
                         if (!day) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
                         setTooltip({
                           date: day.date,
                           count: day.count,
-                          x: x + CELL / 2,
-                          y,
+                          cx: rect.left + rect.width / 2,
+                          top: rect.top,
                         });
                       }}
                       onMouseLeave={() => setTooltip(null)}
@@ -319,30 +321,38 @@ function GitHubCalendar({ username, dark }) {
           </div>
         </div>
 
-        {tooltip && (
-          <div
-            style={{
-              position: "absolute",
-              left: tooltip.x + 24,
-              top: tooltip.y + 20 - 34,
-              transform: "translateX(-50%)",
-              background: "#1c1c1c",
-              color: "white",
-              fontSize: 12,
-              padding: "6px 10px",
-              borderRadius: 6,
-              whiteSpace: "nowrap",
-              pointerEvents: "none",
-              zIndex: 10,
-            }}
-          >
-            {tooltip.count === 0
-              ? `No contributions on ${formatDateLabel(tooltip.date)}`
-              : `${tooltip.count} contribution${
-                  tooltip.count === 1 ? "" : "s"
-                } on ${formatDateLabel(tooltip.date)}`}
-          </div>
-        )}
+        {tooltip &&
+          (() => {
+            const viewportWidth = document.documentElement.clientWidth;
+            const clampedLeft = Math.min(
+              Math.max(tooltip.cx, 80),
+              viewportWidth - 80,
+            );
+            return (
+              <div
+                style={{
+                  position: "fixed",
+                  left: clampedLeft,
+                  top: Math.max(8, tooltip.top - 36),
+                  transform: "translateX(-50%)",
+                  background: "#1c1c1c",
+                  color: "white",
+                  fontSize: 12,
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  whiteSpace: "nowrap",
+                  pointerEvents: "none",
+                  zIndex: 1000,
+                }}
+              >
+                {tooltip.count === 0
+                  ? `No contributions on ${formatDateLabel(tooltip.date)}`
+                  : `${tooltip.count} contribution${
+                      tooltip.count === 1 ? "" : "s"
+                    } on ${formatDateLabel(tooltip.date)}`}
+              </div>
+            );
+          })()}
 
         {/* Legend */}
         <div
